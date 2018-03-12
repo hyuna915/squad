@@ -20,6 +20,7 @@
 *.zip
 .idea/*
 data/*
+experiments/*
 
 # Logs and databases #
 ######################

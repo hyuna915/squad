@@ -1,0 +1,19 @@
+python main.py --experiment_name=bidaf --mode=train  --bidaf=True
+
+python main.py --experiment_name=lstm2 --mode=train  --multi_lstm=True
+
+python main.py --experiment_name=lstm2_bidaf --mode=train  --multi_lstm=True --bidaf=True
+
+python code/main.py --mode=official_eval --json_in_path=data/tiny-dev.json --ckpt_load_dir=experiments/baseline/best_checkpoint
+
+python code/evaluate.py data/tiny-dev.json predictions.json
+
+cl run --name gen-answers --request-docker-image abisee/cs224n-dfp:v4 :code :best_checkpoint glove.txt:0x97c870/glove.6B.100d.txt data.json:0x4870af \
+'python code/main.py --mode=official_eval --glove_path=glove.txt --json_in_path=data.json --ckpt_load_dir=best_checkpoint'
+
+
+cl run --name run-eval --request-docker-image abisee/cs224n-dfp:v4 :code data.json:0x4870af preds.json:gen-answers/predictions.json 'python code/evaluate.py data.json preds.json'
+
+cl edit gen-answers -T cs224n-win18-sanity-check --description "Baseline 28K iteration"
+
+cl edit gen-answers -T cs224n-win18-dev --description "Baseline 28K iteration"

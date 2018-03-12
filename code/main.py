@@ -43,6 +43,9 @@ tf.app.flags.DEFINE_string("mode", "train", "Available modes: train / show_examp
 tf.app.flags.DEFINE_string("experiment_name", "", "Unique name for your experiment. This will create a directory by this name in the experiments/ directory, which will hold all data related to this experiment")
 tf.app.flags.DEFINE_integer("num_epochs", 0, "Number of epochs to train. 0 means train indefinitely")
 
+tf.app.flags.DEFINE_boolean("multi_lstm", False, "Enable two layer lstm")
+tf.app.flags.DEFINE_boolean("bidaf", False, "enable bidaf")
+
 # Hyperparameters
 tf.app.flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
 tf.app.flags.DEFINE_float("max_gradient_norm", 5.0, "Clip gradients to this norm.")

@@ -30,7 +30,7 @@ from tensorflow.python.ops import embedding_ops
 from evaluate import exact_match_score, f1_score
 from data_batcher import get_batch_generator
 from pretty_print import print_example
-from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn
+from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn, MultiLSTMEncoder, BiDAFAttn
 
 logging.basicConfig(level=logging.INFO)
 
@@ -53,11 +53,12 @@ class QAModel(object):
         self.id2word = id2word
         self.word2id = word2id
 
+
         # Add all parts of the graph
         with tf.variable_scope("QAModel", initializer=tf.contrib.layers.variance_scaling_initializer(factor=1.0, uniform=True)):
             self.add_placeholders()
             self.add_embedding_layer(emb_matrix)
-            self.build_graph()
+            self.build_graph(FLAGS.multi_lstm, FLAGS.bidaf)
             self.add_loss()
 
         # Define trainable parameters, gradient, gradient norm, and clip by gradient norm
@@ -115,8 +116,7 @@ class QAModel(object):
             self.context_embs = embedding_ops.embedding_lookup(embedding_matrix, self.context_ids) # shape (batch_size, context_len, embedding_size)
             self.qn_embs = embedding_ops.embedding_lookup(embedding_matrix, self.qn_ids) # shape (batch_size, question_len, embedding_size)
 
-
-    def build_graph(self):
+    def build_graph(self, multi_lstm=False, bidaf=False):
         """Builds the main part of the graph for the model, starting from the input embeddings to the final distributions for the answer span.
 
         Defines:
@@ -130,16 +130,24 @@ class QAModel(object):
         # Use a RNN to get hidden states for the context and the question
         # Note: here the RNNEncoder is shared (i.e. the weights are the same)
         # between the context and the question.
-        encoder = RNNEncoder(self.FLAGS.hidden_size, self.keep_prob)
+        if multi_lstm is False:
+            encoder = RNNEncoder(self.FLAGS.hidden_size, self.keep_prob)
+        else:
+            encoder = MultiLSTMEncoder(self.FLAGS.hidden_size, self.keep_prob)
         context_hiddens = encoder.build_graph(self.context_embs, self.context_mask) # (batch_size, context_len, hidden_size*2)
         question_hiddens = encoder.build_graph(self.qn_embs, self.qn_mask) # (batch_size, question_len, hidden_size*2)
 
-        # Use context hidden states to attend to question hidden states
-        attn_layer = BasicAttn(self.keep_prob, self.FLAGS.hidden_size*2, self.FLAGS.hidden_size*2)
-        _, attn_output = attn_layer.build_graph(question_hiddens, self.qn_mask, context_hiddens) # attn_output is shape (batch_size, context_len, hidden_size*2)
-
-        # Concat attn_output to context_hiddens to get blended_reps
-        blended_reps = tf.concat([context_hiddens, attn_output], axis=2) # (batch_size, context_len, hidden_size*4)
+        if bidaf is False:
+            # Use context hidden states to attend to question hidden states
+            attn_layer = BasicAttn(self.keep_prob, self.FLAGS.hidden_size*2, self.FLAGS.hidden_size*2)
+            _, attn_output = attn_layer.build_graph(question_hiddens, self.qn_mask, context_hiddens) # attn_output is shape (batch_size, context_len, hidden_size*2)
+            blended_reps = tf.concat([context_hiddens, attn_output], axis=2) # (batch_size, context_len, hidden_size*4)
+        else:
+            attn_layer = BiDAFAttn(self.keep_prob, self.FLAGS.hidden_size * 2, self.FLAGS.hidden_size * 2)
+            c2q_attn, q2c_attn = attn_layer.build_graph(question_hiddens, self.qn_mask, context_hiddens, self.context_mask)
+            q2c_attn = q2c_attn + tf.zeros(shape=[1, c2q_attn.shape[1], c2q_attn.shape[2]])
+            print (q2c_attn.shape, c2q_attn.shape)
+            blended_reps = tf.concat([context_hiddens, c2q_attn, q2c_attn], axis=2) # (batch_size, context_hiddens, hidden_size*6)
 
         # Apply fully connected layer to each blended representation
         # Note, blended_reps_final corresponds to b' in the handout

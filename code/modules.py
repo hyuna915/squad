@@ -77,6 +77,61 @@ class RNNEncoder(object):
             return out
 
 
+class MultiLSTMEncoder(object):
+
+    def __init__(self, hidden_size, keep_prob, layer_size=2):
+        """
+        Inputs:
+          hidden_size: int. Hidden size of the RNN
+          keep_prob: Tensor containing a single scalar that is the keep probability (for dropout)
+        """
+        self.hidden_size = hidden_size
+        self.keep_prob = keep_prob
+        self.layer_size = layer_size
+
+        cells_fw=[]
+        cells_bw=[]
+        for i in range(self.layer_size):
+            cells_fw.append(DropoutWrapper(rnn_cell.LSTMCell(self.hidden_size), input_keep_prob=self.keep_prob))
+            cells_bw.append(DropoutWrapper(rnn_cell.LSTMCell(self.hidden_size), input_keep_prob=self.keep_prob))
+
+        self.lstm_cells_fw = rnn_cell.MultiRNNCell(cells=cells_fw)
+        self.lstm_cells_bw = rnn_cell.MultiRNNCell(cells=cells_bw)
+
+
+    def build_graph(self, inputs, masks):
+        """
+        Inputs:
+          inputs: Tensor shape (batch_size, seq_len, input_size)
+          masks: Tensor shape (batch_size, seq_len).
+            Has 1s where there is real input, 0s where there's padding.
+            This is used to make sure tf.nn.bidirectional_dynamic_rnn doesn't iterate through masked steps.
+
+        Returns:
+          out: Tensor shape (batch_size, seq_len, hidden_size*2).
+            This is all hidden states (fw and bw hidden states are concatenated).
+        """
+        with vs.variable_scope("MultiLSTMEncoder"):
+            input_lens = tf.reduce_sum(masks, reduction_indices=1) # shape (batch_size)
+
+            # Note: fw_out and bw_out are the hidden states for every timestep.
+            # Each is shape (batch_size, seq_len, hidden_size).
+            (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(
+                cell_fw=self.lstm_cells_fw,
+                cell_bw=self.lstm_cells_bw,
+                inputs=inputs,
+                sequence_length=input_lens,
+                dtype=tf.float32
+            )
+
+            # Concatenate the forward and backward hidden states
+            out = tf.concat([fw_out, bw_out], 2)
+
+            # Apply dropout
+            out = tf.nn.dropout(out, self.keep_prob)
+
+            return out
+
 class SimpleSoftmaxLayer(object):
     """
     Module to take set of hidden states, (e.g. one for each context location),
@@ -168,6 +223,7 @@ class BasicAttn(object):
             _, attn_dist = masked_softmax(attn_logits, attn_logits_mask, 2) # shape (batch_size, num_keys, num_values). take softmax over values
 
             # Use attention distribution to take weighted sum of values
+            # shape (batch_size, num_keys, num_values) * (batch_size, num_values, value_vec_size)
             output = tf.matmul(attn_dist, values) # shape (batch_size, num_keys, value_vec_size)
 
             # Apply dropout
@@ -175,6 +231,62 @@ class BasicAttn(object):
 
             return attn_dist, output
 
+
+class BiDAFAttn(object):
+
+    def __init__(self, keep_prob, key_vec_size, value_vec_size):
+        """
+        Inputs:
+          keep_prob: tensor containing a single scalar that is the keep probability (for dropout)
+          key_vec_size: size of the key vectors. int
+          value_vec_size: size of the value vectors. int
+        """
+        self.keep_prob = keep_prob
+        self.key_vec_size = key_vec_size
+        self.value_vec_size = value_vec_size
+
+    def build_graph(self, questions, questions_mask, contexts, contexts_mask):
+        """
+        Inputs:
+          questions: Tensor shape (batch_size, num_values, value_vec_size).
+          questions_mask: Tensor shape (batch_size, num_values).
+            1s where there's real input, 0s where there's padding
+          contexts: Tensor shape (batch_size, num_keys, value_vec_size)
+          contexts_mask: Tensor shape (batch_size, num_values).
+            1s where there's real input, 0s where there's padding
+
+        Outputs:
+          attn_dist: Tensor shape (batch_size, num_keys, num_values).
+            For each key, the distribution should sum to 1,
+            and should be 0 in the value locations that correspond to padding.
+          output: Tensor shape (batch_size, num_keys, hidden_size).
+            This is the attention output; the weighted sum of the values
+            (using the attention distribution as weights).
+        """
+        with vs.variable_scope("BiDAFAttn"):
+
+            # Calculate attention distribution
+            c = tf.expand_dims(contexts, 2) + tf.zeros(shape=[1, contexts.shape[1], questions.shape[1], contexts.shape[2]])# (batch_size, N, 1, value_vec_size)
+            print (c.shape, contexts.shape)
+            q = tf.expand_dims(questions, 1) + tf.zeros(shape=[1, contexts.shape[1], questions.shape[1], contexts.shape[2]])  #(batch_size, 1, M, value_vec_size)
+            print (q.shape, questions.shape, tf.multiply(c, q).shape)
+            s = tf.concat([c, q, tf.multiply(c, q)], axis=3) # (batch_size, N, M, 6h)
+            S = tf.contrib.layers.fully_connected(s, num_outputs=1) # (batch_size, N, M, 1)
+            S = tf.squeeze(S, axis=[3]) # (batch_size, N, M)
+
+            attn_questions_mask = tf.expand_dims(questions_mask, 1)  # (batch_size, 1, M)
+            _, c2q_dist = masked_softmax(S, attn_questions_mask, 2) # (batch_size, N, M)
+            c2q_attn = tf.matmul(c2q_dist, questions) # (batch_size, N, 2h)
+            c2q_attn = tf.nn.dropout(c2q_attn, self.keep_prob)
+
+            m = tf.reduce_max(S, axis=2) # (batch_size, N)
+            _, q2c_dist = masked_softmax(m, contexts_mask, 1) # (batch_size, N)
+            q2c_dist = tf.expand_dims(q2c_dist, 1) # (batch_size, 1, N)
+            # (batch_size, 1, N) * (batch_size, N, value_vec_size)
+            q2c_attn = tf.matmul(q2c_dist, contexts) # (batch_size, 1, 2h)
+            q2c_attn = tf.nn.dropout(q2c_attn, self.keep_prob)
+
+            return c2q_attn, q2c_attn
 
 def masked_softmax(logits, mask, dim):
     """
