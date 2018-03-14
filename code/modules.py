@@ -170,6 +170,38 @@ class SimpleSoftmaxLayer(object):
             return masked_logits, prob_dist
 
 
+class ConditionalOutputLayer(object):
+
+    def __init__(self, hidden_size, keep_prob):
+        self.hidden_size = hidden_size
+        self.keep_prob = keep_prob
+        self.lstm_cell_fw = rnn_cell.BasicLSTMCell(self.hidden_size)
+        self.lstm_cell_fw = DropoutWrapper(self.lstm_cell_fw, input_keep_prob=self.keep_prob)
+        self.lstm_cell_bw = rnn_cell.BasicLSTMCell(self.hidden_size)
+        self.lstm_cell_bw = DropoutWrapper(self.lstm_cell_bw, input_keep_prob=self.keep_prob)
+
+    def decode_layer(self, inputs, masks):
+        with tf.variable_scope("ConditionalDecode"):
+            input_lens = tf.reduce_sum(masks, reduction_indices=1)  # shape (batch_size)
+            (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(self.lstm_cell_fw, self.lstm_cell_bw,
+                                                                  inputs, input_lens, dtype=tf.float32)
+            # Concatenate the forward and backward hidden states
+            out = tf.concat([fw_out, bw_out], 2)
+            # Apply dropout
+            out = tf.nn.dropout(out, self.keep_prob)
+        return out
+
+    def build_graph(self, inputs, masks):
+        decode_output = self.decode_layer(inputs, masks)
+
+        with tf.variable_scope("ConditionalOutput"):
+            logits = tf.contrib.layers.fully_connected(decode_output, num_outputs=1, activation_fn=None)
+            logits = tf.squeeze(logits, axis=[2])
+            masked_logits, prob_dist = masked_softmax(logits, masks, 1)
+
+        return masked_logits, prob_dist
+
+
 class BasicAttn(object):
     """Module for basic attention.
 
@@ -287,6 +319,41 @@ class BiDAFAttn(object):
             q2c_attn = tf.nn.dropout(q2c_attn, self.keep_prob)
 
             return c2q_attn, q2c_attn
+
+
+class CoAttn(object):
+
+    def __init__(self, keep_prob, key_vec_size, value_vec_size):
+        """
+        Inputs:
+          keep_prob: tensor containing a single scalar that is the keep probability (for dropout)
+          key_vec_size: size of the key vectors. int
+          value_vec_size: size of the value vectors. int
+        """
+        self.keep_prob = keep_prob
+        self.key_vec_size = key_vec_size
+        self.value_vec_size = value_vec_size
+
+    def build_graph(self, questions, questions_mask, contexts, contexts_mask):
+        """
+        Inputs:
+          questions: Tensor shape (batch_size, num_values, value_vec_size).
+          questions_mask: Tensor shape (batch_size, num_values).
+            1s where there's real input, 0s where there's padding
+          contexts: Tensor shape (batch_size, num_keys, value_vec_size)
+          contexts_mask: Tensor shape (batch_size, num_values).
+            1s where there's real input, 0s where there's padding
+
+        Outputs:
+          attn_dist: Tensor shape (batch_size, num_keys, num_values).
+            For each key, the distribution should sum to 1,
+            and should be 0 in the value locations that correspond to padding.
+          output: Tensor shape (batch_size, num_keys, hidden_size).
+            This is the attention output; the weighted sum of the values
+            (using the attention distribution as weights).
+        """
+
+
 
 def masked_softmax(logits, mask, dim):
     """

@@ -30,7 +30,7 @@ from tensorflow.python.ops import embedding_ops
 from evaluate import exact_match_score, f1_score
 from data_batcher import get_batch_generator
 from pretty_print import print_example
-from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn, MultiLSTMEncoder, BiDAFAttn
+from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn, MultiLSTMEncoder, BiDAFAttn, ConditionalOutputLayer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -162,10 +162,19 @@ class QAModel(object):
 
         # Use softmax layer to compute probability distribution for end location
         # Note this produces self.logits_end and self.probdist_end, both of which have shape (batch_size, context_len)
-        with vs.variable_scope("EndDist"):
-            softmax_layer_end = SimpleSoftmaxLayer()
-            self.logits_end, self.probdist_end = softmax_layer_end.build_graph(blended_reps_final, self.context_mask)
-
+        if self.FLAGS.cond_pred is False:
+            with vs.variable_scope("EndDist"):
+                softmax_layer_end = SimpleSoftmaxLayer()
+                self.logits_end, self.probdist_end = softmax_layer_end.build_graph(blended_reps_final, self.context_mask)
+        else:
+            logits_start_float32 = tf.expand_dims(tf.cast(self.logits_start, dtype=tf.float32), axis=2)
+            logits_start_float32 = logits_start_float32 + tf.zeros(shape=(1,blended_reps_final.shape[1],blended_reps_final.shape[2]), dtype=tf.float32)
+            print(blended_reps_final.dtype, blended_reps_final.shape,
+                  logits_start_float32.dtype, logits_start_float32.shape)
+            comb_blended_reps = tf.concat([blended_reps_final, logits_start_float32],axis=2)
+            with vs.variable_scope("EndDist"):
+                conditional_output_layer = ConditionalOutputLayer(self.FLAGS.hidden_size, self.keep_prob)
+                self.logits_end, self.probdist_end =conditional_output_layer.build_graph(comb_blended_reps, self.context_mask)
 
     def add_loss(self):
         """

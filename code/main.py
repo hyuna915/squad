@@ -45,6 +45,7 @@ tf.app.flags.DEFINE_integer("num_epochs", 0, "Number of epochs to train. 0 means
 
 tf.app.flags.DEFINE_boolean("multi_lstm", False, "Enable two layer lstm")
 tf.app.flags.DEFINE_boolean("bidaf", False, "enable bidaf")
+tf.app.flags.DEFINE_boolean("cond_pred", False, "enable conditional prediction")
 
 # Hyperparameters
 tf.app.flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
