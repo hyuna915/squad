@@ -46,6 +46,7 @@ tf.app.flags.DEFINE_integer("num_epochs", 0, "Number of epochs to train. 0 means
 tf.app.flags.DEFINE_boolean("multi_lstm", False, "Enable two layer lstm")
 tf.app.flags.DEFINE_boolean("bidaf", False, "enable bidaf")
 tf.app.flags.DEFINE_boolean("cond_pred", False, "enable conditional prediction")
+tf.app.flags.DEFINE_boolean("smart_span", True, "enable conditional prediction")
 
 # Hyperparameters
 tf.app.flags.DEFINE_float("learning_rate", 0.001, "Learning rate.")
@@ -155,6 +156,7 @@ def main(unused_argv):
         # Save a record of flags as a .json file in train_dir
         with open(os.path.join(FLAGS.train_dir, "flags.json"), 'w') as fout:
             json.dump(FLAGS.__flags, fout)
+        print("Flags: " + FLAGS.__flags)
 
         # Make bestmodel dir if necessary
         if not os.path.exists(bestmodel_dir):
@@ -170,6 +172,7 @@ def main(unused_argv):
 
 
     elif FLAGS.mode == "show_examples":
+        print("Flags: " + FLAGS.__flags)
         with tf.Session(config=config) as sess:
 
             # Load best model
@@ -180,6 +183,7 @@ def main(unused_argv):
 
 
     elif FLAGS.mode == "official_eval":
+        print("Flags: " + FLAGS.__flags)
         if FLAGS.json_in_path == "":
             raise Exception("For official_eval mode, you need to specify --json_in_path")
         if FLAGS.ckpt_load_dir == "":

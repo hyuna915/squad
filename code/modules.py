@@ -126,6 +126,7 @@ class MultiLSTMEncoder(object):
 
             # Concatenate the forward and backward hidden states
             out = tf.concat([fw_out, bw_out], 2)
+            tf.summary.histogram(out, "MultiLSTMEncoder Output")
 
             # Apply dropout
             out = tf.nn.dropout(out, self.keep_prob)
@@ -181,24 +182,23 @@ class ConditionalOutputLayer(object):
         self.lstm_cell_bw = DropoutWrapper(self.lstm_cell_bw, input_keep_prob=self.keep_prob)
 
     def decode_layer(self, inputs, masks):
-        with tf.variable_scope("ConditionalDecode"):
+        with tf.variable_scope("ConditionalDecoder"):
             input_lens = tf.reduce_sum(masks, reduction_indices=1)  # shape (batch_size)
             (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(self.lstm_cell_fw, self.lstm_cell_bw,
                                                                   inputs, input_lens, dtype=tf.float32)
             # Concatenate the forward and backward hidden states
             out = tf.concat([fw_out, bw_out], 2)
             # Apply dropout
-            out = tf.nn.dropout(out, self.keep_prob)
+            out = tf.nn.dropout(out, self.keep_prob, name="hidden_state")
         return out
 
     def build_graph(self, inputs, masks):
         decode_output = self.decode_layer(inputs, masks)
 
         with tf.variable_scope("ConditionalOutput"):
-            logits = tf.contrib.layers.fully_connected(decode_output, num_outputs=1, activation_fn=None)
+            logits = tf.contrib.layers.fully_connected(decode_output, num_outputs=1, activation_fn=None, scope='fully_connected')
             logits = tf.squeeze(logits, axis=[2])
             masked_logits, prob_dist = masked_softmax(logits, masks, 1)
-
         return masked_logits, prob_dist
 
 

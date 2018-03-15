@@ -21,6 +21,7 @@
 .idea/*
 data/*
 experiments/*
+results/*/best_checkpoint/*
 
 # Logs and databases #
 ######################

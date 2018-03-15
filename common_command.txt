@@ -4,6 +4,8 @@ python main.py --experiment_name=lstm2 --mode=train  --multi_lstm=True
 
 python main.py --experiment_name=lstm2_bidaf --mode=train  --multi_lstm=True --bidaf=True
 
+python main.py --experiment_name=cond --mode=train --cond_pred=True
+
 python code/main.py --mode=official_eval --json_in_path=data/tiny-dev.json --ckpt_load_dir=experiments/baseline/best_checkpoint
 
 python code/evaluate.py data/tiny-dev.json predictions.json

@@ -147,7 +147,9 @@ class QAModel(object):
             c2q_attn, q2c_attn = attn_layer.build_graph(question_hiddens, self.qn_mask, context_hiddens, self.context_mask)
             q2c_attn = q2c_attn + tf.zeros(shape=[1, c2q_attn.shape[1], c2q_attn.shape[2]])
             print (q2c_attn.shape, c2q_attn.shape)
-            blended_reps = tf.concat([context_hiddens, c2q_attn, q2c_attn], axis=2) # (batch_size, context_hiddens, hidden_size*6)
+            context_c2q = tf.multiply(context_hiddens, c2q_attn)
+            context_q2c = tf.multiply(context_hiddens, q2c_attn)
+            blended_reps = tf.concat([context_hiddens, c2q_attn, context_c2q, context_q2c], axis=2) # (batch_size, context_hiddens, hidden_size*8)
 
         # Apply fully connected layer to each blended representation
         # Note, blended_reps_final corresponds to b' in the handout
@@ -312,12 +314,27 @@ class QAModel(object):
         """
         # Get start_dist and end_dist, both shape (batch_size, context_len)
         start_dist, end_dist = self.get_prob_dists(session, batch)
-
-        # Take argmax to get start_pos and end_post, both shape (batch_size)
-        start_pos = np.argmax(start_dist, axis=1)
-        end_pos = np.argmax(end_dist, axis=1)
-
-        return start_pos, end_pos
+        if self.FLAGS.smart_span is False:
+            # Take argmax to get start_pos and end_post, both shape (batch_size)
+            start_pos = np.argmax(start_dist, axis=1)
+            end_pos = np.argmax(end_dist, axis=1)
+            return start_pos, end_pos
+        else:
+            start_pos_list =[]
+            end_pos_list=[]
+            for record in range(start_dist.shape[0]):
+                start_pos = 0
+                end_pos = 0
+                max_pos = 0
+                for i in range(start_dist.shape[1]):
+                    for j in range(i, min(i+16, start_dist.shape[1])):
+                        if(start_dist[record][i]*end_dist[record][j] > max_pos):
+                            max_pos = start_dist[record][i]*end_dist[record][j]
+                            start_pos = i
+                            end_pos = j
+                start_pos_list.append(start_pos)
+                end_pos_list.append(end_pos)
+            return np.asarray(start_pos_list), np.asarray(end_pos_list)
 
 
     def get_dev_loss(self, session, dev_context_path, dev_qn_path, dev_ans_path):
