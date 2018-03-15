@@ -325,11 +325,11 @@ class QAModel(object):
             for record in range(start_dist.shape[0]):
                 start_pos = 0
                 end_pos = 0
-                max_pos = 0
+                max_pos = -999
                 for i in range(start_dist.shape[1]):
-                    for j in range(i, min(i+16, start_dist.shape[1])):
-                        if(start_dist[record][i]*end_dist[record][j] > max_pos):
-                            max_pos = start_dist[record][i]*end_dist[record][j]
+                    for j in range(i, min(i+15, start_dist.shape[1])):
+                        if((1/(np.log(j-i+1)+1))*start_dist[record][i]*end_dist[record][j] > max_pos):
+                            max_pos = (1/(np.log(j-i+1)+1))*start_dist[record][i]*end_dist[record][j]
                             start_pos = i
                             end_pos = j
                 start_pos_list.append(start_pos)

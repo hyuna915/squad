@@ -156,7 +156,7 @@ def main(unused_argv):
         # Save a record of flags as a .json file in train_dir
         with open(os.path.join(FLAGS.train_dir, "flags.json"), 'w') as fout:
             json.dump(FLAGS.__flags, fout)
-        print("Flags: " + FLAGS.__flags)
+        print("Flags: " + str(FLAGS.__flags))
 
         # Make bestmodel dir if necessary
         if not os.path.exists(bestmodel_dir):
@@ -172,7 +172,7 @@ def main(unused_argv):
 
 
     elif FLAGS.mode == "show_examples":
-        print("Flags: " + FLAGS.__flags)
+        print("Flags: " + str(FLAGS.__flags))
         with tf.Session(config=config) as sess:
 
             # Load best model
@@ -183,7 +183,7 @@ def main(unused_argv):
 
 
     elif FLAGS.mode == "official_eval":
-        print("Flags: " + FLAGS.__flags)
+        print("Flags: " + str(FLAGS.__flags))
         if FLAGS.json_in_path == "":
             raise Exception("For official_eval mode, you need to specify --json_in_path")
         if FLAGS.ckpt_load_dir == "":
