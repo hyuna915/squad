@@ -201,6 +201,36 @@ class ConditionalOutputLayer(object):
         return masked_logits, prob_dist
 
 
+class StartDecodeLayer(object):
+    def __init__(self, hidden_size, keep_prob):
+        self.hidden_size = hidden_size
+        self.keep_prob = keep_prob
+        self.lstm_cell_fw = rnn_cell.BasicLSTMCell(self.hidden_size)
+        self.lstm_cell_fw = DropoutWrapper(self.lstm_cell_fw, input_keep_prob=self.keep_prob)
+        self.lstm_cell_bw = rnn_cell.BasicLSTMCell(self.hidden_size)
+        self.lstm_cell_bw = DropoutWrapper(self.lstm_cell_bw, input_keep_prob=self.keep_prob)
+
+    def decode_layer(self, inputs, masks):
+        with tf.variable_scope("StartDecode"):
+            input_lens = tf.reduce_sum(masks, reduction_indices=1)  # shape (batch_size)
+            (fw_out, bw_out), _ = tf.nn.bidirectional_dynamic_rnn(self.lstm_cell_fw, self.lstm_cell_bw,
+                                                                  inputs, input_lens, dtype=tf.float32)
+            # Concatenate the forward and backward hidden states
+            out = tf.concat([fw_out, bw_out], 2)
+            # Apply dropout
+            out = tf.nn.dropout(out, self.keep_prob)
+        return out
+
+    def build_graph(self, inputs, masks):
+        print("Enable start LSTM decoder")
+        start_decode_output = self.decode_layer(inputs, masks)
+        with tf.variable_scope("StartOutput"):
+            logits = tf.contrib.layers.fully_connected(start_decode_output, num_outputs=1, activation_fn=None)
+            logits = tf.squeeze(logits, axis=[2])
+            masked_logits, prob_dist = masked_softmax(logits, masks, 1)
+        return masked_logits, prob_dist
+
+
 class BasicAttn(object):
     """Module for basic attention.
 

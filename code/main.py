@@ -45,6 +45,7 @@ tf.app.flags.DEFINE_integer("num_epochs", 0, "Number of epochs to train. 0 means
 
 tf.app.flags.DEFINE_boolean("multi_lstm", False, "Enable two layer lstm")
 tf.app.flags.DEFINE_boolean("bidaf", False, "enable bidaf")
+tf.app.flags.DEFINE_boolean("start_lstm_decode", False, "enable lstm decoder for start")
 tf.app.flags.DEFINE_boolean("cond_pred", False, "enable conditional prediction")
 tf.app.flags.DEFINE_boolean("smart_span", True, "enable conditional prediction")
 

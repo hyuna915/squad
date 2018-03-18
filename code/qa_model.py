@@ -30,7 +30,7 @@ from tensorflow.python.ops import embedding_ops
 from evaluate import exact_match_score, f1_score
 from data_batcher import get_batch_generator
 from pretty_print import print_example
-from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn, MultiLSTMEncoder, BiDAFAttn, ConditionalOutputLayer
+from modules import RNNEncoder, SimpleSoftmaxLayer, BasicAttn, MultiLSTMEncoder, BiDAFAttn, ConditionalOutputLayer, StartDecodeLayer
 
 logging.basicConfig(level=logging.INFO)
 
@@ -158,9 +158,15 @@ class QAModel(object):
 
         # Use softmax layer to compute probability distribution for start location
         # Note this produces self.logits_start and self.probdist_start, both of which have shape (batch_size, context_len)
-        with vs.variable_scope("StartDist"):
-            softmax_layer_start = SimpleSoftmaxLayer()
-            self.logits_start, self.probdist_start = softmax_layer_start.build_graph(blended_reps_final, self.context_mask)
+        if self.FLAGS.start_lstm_decode is False:
+            with vs.variable_scope("StartDist"):
+                softmax_layer_start = SimpleSoftmaxLayer()
+                self.logits_start, self.probdist_start = softmax_layer_start.build_graph(blended_reps_final, self.context_mask)
+        else:
+            with vs.variable_scope("StartDist"):
+                start_decode_layer = StartDecodeLayer(self.FLAGS.hidden_size, self.keep_prob)
+                self.logits_start, self.probdist_start = start_decode_layer.build_graph(blended_reps_final, self.context_mask)
+
 
         # Use softmax layer to compute probability distribution for end location
         # Note this produces self.logits_end and self.probdist_end, both of which have shape (batch_size, context_len)
