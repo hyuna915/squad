@@ -5,7 +5,9 @@ python main.py --experiment_name=lstm2 --mode=train  --multi_lstm=True
 
 python main.py --experiment_name=lstm2_bidaf --mode=train  --multi_lstm=True --bidaf=True
 
-python main.py --experiment_name=cond --mode=train --cond_pred=True
+python main.py --experiment_name=lstm2_bidaf_cond2 --mode=train --gpu=1 --cond_pred=True --multi_lstm=True --bidaf=True --learning_rate=0.0015 --dropout=0.15 --hidden_size=150 --context_len=400
+
+python main.py --experiment_name=cond --mode=train --cond_pred=True --multi_lstm=True --learning_rate=0.0015 --dropout=0.2
 
 # Eval
 python code/main.py --mode=official_eval --json_in_path=data/tiny-dev.json --ckpt_load_dir=experiments/baseline/best_checkpoint --json_out_path=results/baseline/predictions.json
@@ -17,6 +19,8 @@ python code/main.py --mode=official_eval --json_in_path=data/tiny-dev.json --ckp
 python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_0314/best_checkpoint --json_out_path=results/lstm2_0314/predictions-dev.json --multi_lstm=True
 
 python code/evaluate.py data/dev-v1.1.json results/lstm2_0314/predictions-dev.json > results/lstm2_0314/F1-dev.txt
+
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_0315/best_checkpoint --json_out_path=results/lstm2_bidaf_cond_0315/predictions-dev.json --multi_lstm=True --cond_pred=True --dropout=0 --bidaf=True --hidden_size=100 --context_len=400
 
 # Login Azure
 ssh heguangl@13.84.191.121
