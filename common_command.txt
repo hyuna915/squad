@@ -9,6 +9,8 @@ python main.py --experiment_name=lstm2_bidaf_cond2 --mode=train --gpu=1 --cond_p
 
 python main.py --experiment_name=cond --mode=train --cond_pred=True --multi_lstm=True --learning_rate=0.0015 --dropout=0.2
 
+python main.py --experiment_name=lstm2_bidaf_cond_decode4 --mode=train --cond_pred=True --multi_lstm=True --bidaf=True --start_lstm_decode=True --context_len=300 --hidden_size=250 --dropout=0.3 --batch_size=40
+
 # Eval
 python code/main.py --mode=official_eval --json_in_path=data/tiny-dev.json --ckpt_load_dir=experiments/baseline/best_checkpoint --json_out_path=results/baseline/predictions.json
 
@@ -22,13 +24,28 @@ python code/evaluate.py data/dev-v1.1.json results/lstm2_0314/predictions-dev.js
 
 python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_0315/best_checkpoint --json_out_path=results/lstm2_bidaf_cond_0315/predictions-dev.json --multi_lstm=True --cond_pred=True --dropout=0 --bidaf=True --hidden_size=100 --context_len=400
 
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_decode/best_checkpoint1 --json_out_path=results/lstm2_bidaf_cond_decode/predictions1-dev.json --context_len=300 --hidden_size=150 --bidaf=True --cond_pred=True --multi_lstm=True --start_lstm_decode=True
+
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_decode2/best_checkpoint --json_out_path=results/lstm2_bidaf_cond_decode2/predictions-dev.json --context_len=300 --hidden_size=150 --embedding_size=200 --bidaf=True --cond_pred=True --multi_lstm=True --start_lstm_decode=True
+
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_decode3/best_checkpoint --json_out_path=results/lstm2_bidaf_cond_decode3/predictions-dev.json --context_len=300 --hidden_size=200 --embedding_size=100 --bidaf=True --cond_pred=True --multi_lstm=True --start_lstm_decode=True
+
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_decode4/best_checkpoint --json_out_path=results/lstm2_bidaf_cond_decode4/predictions-dev.json --context_len=300 --hidden_size=250 --embedding_size=100 --bidaf=True --cond_pred=True --multi_lstm=True --start_lstm_decode=True
+
+python code/main.py --mode=official_eval --json_in_path=data/dev-v1.1.json --ckpt_load_dir=results/lstm2_bidaf_cond_decode5/best_checkpoint1 --json_out_path=results/lstm2_bidaf_cond_decode5/predictions1-dev.json --context_len=300 --hidden_size=150 --embedding_size=100 --bidaf=True --cond_pred=True --multi_lstm=True --start_lstm_decode=True
+
+python code/evaluate.py data/dev-v1.1.json results/lstm2_bidaf_cond_decode/predictions2-dev.json > results/lstm2_bidaf_cond_decode/F12-dev.txt
+
 # Login Azure
-ssh heguangl@13.84.191.121
 ssh heguangl@13.84.130.140
+ssh heguangl@13.84.191.121
+ssh heguangl@13.84.131.135
 
 scp -rp heguangl@13.84.130.140:/home/heguangl/squad/experiments/bidaf/best_checkpoint/ .
 scp heguangl@13.84.130.140:/home/heguangl/squad/experiments/lstm2/log.txt .
 scp heguangl@13.84.130.140:/home/heguangl/squad/experiments/baseline/flags.json .
+
+tail -n +1 -- ./results/*/F1*
 
 # Tensorboard
 tensorboard --logdir=. --port=5678
